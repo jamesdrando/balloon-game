@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loose Balloon</title>
+    <style>
+        *, *::before, *::after {
+            padding: 0;
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            display: block;
+            height: 96vh;
+            width: 100vw;
+            background-image: linear-gradient(to bottom right, red, yellow);
+        }
+        #scoreContainer {
+            position: absolute;
+            padding: 5px;
+            top: 7vh;
+            right: 10px;
+            text-align: right;
+            color: white;
+            background-color: rgba(247, 198, 2, 0.95);
+            border-radius: 10px;
+        }
+        #score {
+            font-size: 24px; 
+            font-weight: bold;
+        }
+        #replayMessage {
+            position: fixed;
+            left:50%;
+            right:50%;
+            top:45%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            min-width: 200px;
+            text-align: center;
+            font-weight: bold;
+            cursor: none;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <nav style="background-color: red; height:4vh; color: white; padding: 5px;">
+        <h1 style="display: inline-block; align-content: left;">Loose Balloon</h1>
+    </nav>
+    <div id="scoreContainer">
+        <p id="score">Score: 0</p>
+    </div>
+    <div id="replayMessage"><h1>Game Over</h1><h3>Click to play again.</h3></div>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById("score");
+        const replayMessage = document.getElementById("replayMessage");
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let balloonX = canvas.width / 2;
+        let balloonY = canvas.height - 50;
+        const balloonRadius = 20;
+        let isGameOver = false;
+        let score = 0;
+        
+        function randomsign(number) {
+            if (Math.random() > 0.5) {
+                return number * -1;
+            }
+            return number;
+        }
+
+        class Bird {
+            constructor() {
+                this.x = canvas.width + randomsign(canvas.width * Math.random());
+                this.y = Math.random() * (canvas.height - 100) ? this.x > canvas.width: Math.random() * (canvas.height + 100);
+                this.speed = Math.random() * 2.5 + 1;
+                this.size = 30;        
+
+                let dice = Math.floor(Math.random() * 100) % 6;
+
+                switch (dice) {
+                    case 0: this.color = 'brown'; break;
+                    case 1: this.color = 'blue'; break;
+                    case 2: this.color = 'black'; break;
+                    case 3: this.color = 'red'; break;
+                    case 4: this.color = 'green'; break;
+                    case 5: this.color = 'pink'; break;
+                    default:
+                        this.color = 'brown'; break;
+                };
+            }
+
+            update() {
+                this.x -= this.speed;
+                this.y += this.speed;
+                if (this.x < -10 || this.y < -10) {
+                    this.x = canvas.width + randomsign(canvas.width * Math.random());
+                    this.y = Math.random() * (canvas.height - 100) ? this.x > canvas.width: Math.random() * (canvas.height + 100);
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - 20, this.y - 10);
+                ctx.lineTo(this.x - 20, this.y + 10);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        class Cloud {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * (canvas.height / 2);
+                this.speed = Math.random() * 0.5 + 0.1;
+                this.width = Math.random() * 100 + 50;
+                this.height = Math.random() * 50 + 25;
+            }
+
+            update() {
+                this.x += this.speed;
+                if (this.x > canvas.width + this.width) {
+                    this.x = -this.width;
+                    this.y = Math.random() * (canvas.height / 2);
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.beginPath();
+                ctx.ellipse(this.x, this.y, this.width / 2, this.height / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.ellipse(this.x + this.width / 4, this.y - this.height / 4, this.width / 3, this.height / 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.ellipse(this.x - this.width / 4, this.y - this.height / 4, this.width / 3, this.height / 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        let birds = Array(120).fill().map(() => new Bird());
+        let clouds = Array(10).fill().map(() => new Cloud());
+
+        function drawBalloon(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, balloonRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(x, y + balloonRadius);
+            ctx.lineTo(x, y + balloonRadius + 20);
+            ctx.strokeStyle = 'black';
+            ctx.stroke();
+        }
+
+        function checkCollision() {
+            for (let bird of birds) {
+                const dx = balloonX - bird.x;
+                const dy = balloonY - bird.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < balloonRadius + bird.size / 2) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function resetGame() {
+            isGameOver = false;
+            score = 0;
+            balloonX = canvas.width / 2;
+            balloonY = canvas.height - 50;
+            birds = Array(120).fill().map(() => new Bird());
+            clouds = Array(10).fill().map(() => new Cloud());
+            replayMessage.style.display = 'none';
+        }
+
+        function gameLoop() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87CEEB');  // Sky blue at the top
+            gradient.addColorStop(1, '#E0F6FF');  // Lighter blue at the bottom
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            clouds.forEach(cloud => {
+                cloud.update();
+                cloud.draw();
+            });
+
+            if (!isGameOver) {
+                birds.forEach(bird => {
+                    bird.update();
+                    bird.draw();
+                });
+
+                drawBalloon(balloonX, balloonY);
+
+                if (!checkCollision()) {
+                    score += 1;
+                    scoreElement.innerHTML = "Score: " + ("000000" + score).slice(-7);
+                } else {
+                    isGameOver = true;
+                    replayMessage.style.display = 'block';
+                }
+            } else {
+                // ctx.fillStyle = 'black';
+                // ctx.font = 'bold 48px system-ui';
+                // ctx.fillText('Game Over', canvas.width / 2 - 120, canvas.height / 2);
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isGameOver) {
+                balloonX = e.clientX;
+            }
+        });
+
+        canvas.addEventListener('click', () => {
+            if (isGameOver) {
+                resetGame();
+            }
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
